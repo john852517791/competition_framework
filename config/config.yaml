@@ -1,0 +1,17 @@
+# config/config.yaml
+
+model_name_or_path: 'google/vit-base-patch16-224-in21k'
+data_dir: './datasets/toy_set' # 请将此路径替换为您的数据集实际路径
+output_dir: './a_log'
+seed: 42
+batch_size: 16
+num_workers: 4
+learning_rate: 2.0e-5
+max_epochs: 10
+patience: 3
+accelerator: 'auto'
+devices: [6] # 修正：使用列表指定 GPU 索引，例如 [6] 表示使用 GPU 6
+
+# --- Wandb Logger Settings ---
+wandb_project: "pl-image-classification-framework" # 您的 W&B 项目名称
+wandb_run_name: null # 运行名称 (可选, 设为 null 则自动生成)
