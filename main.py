@@ -43,7 +43,7 @@ def train(args:GlobalConfig,config_path):
     # 4. 设置 Trainer 和 Callbacks
     checkpoint_callback = ModelCheckpoint( # 从配置对象中访问参数
         # dirpath=args.output_dir, 
-        filename='best-checkpoint-{epoch:02d}-{val_loss:.2f}',
+        filename='best-checkpoint-{epoch:02d}-{train_loss:.4f}',
         save_top_k=args.train.save_top_k,
         verbose=True,
         monitor='train_loss',

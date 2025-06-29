@@ -3,13 +3,13 @@ data:
   label_file_path: data/train.txt
   image_size: 384
   num_classes: 2
-  batch_size: 96
+  batch_size: 8
   num_workers: 4
 train:
   seed: 42
-  epochs: 10
+  epochs: 30
   loss_fn: crossentropy
-  learning_rate: 0.001
+  learning_rate: 0.0001
   optimizer: AdamW
   weight_decay: 1.0e-05
   momentum: 0.9
@@ -17,12 +17,6 @@ train:
   save_top_k: -1
   accelerator: gpu
   deviceid:
-  - 0
-  - 1
-  - 2
-  - 3
-  - 4
-  - 5
   - 6
   - 7
   lr_scheduler: cosineannealinglr
@@ -47,9 +41,9 @@ augment:
   add_gaussian_noise_std: 0.01
 module:
   dataModule: utils/data_loader/dataloader.py
-  modelModule: tl_models/models/npr.py
+  modelModule: tl_models/models/effnetv2_xl.py
   tl_model_module: tl_models/tl_model.py
 logging:
   log_dir: ./a_logs
-  single_logname: npr
+  single_logname: effnetv2_xl
   experiment_name: fake_image_detection
