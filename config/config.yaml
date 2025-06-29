@@ -1,17 +1,55 @@
-# config/config.yaml
-
-model_name_or_path: 'google/vit-base-patch16-224-in21k'
-data_dir: './datasets/toy_set' # 请将此路径替换为您的数据集实际路径
-output_dir: './a_log'
-seed: 42
-batch_size: 16
-num_workers: 4
-learning_rate: 2.0e-5
-max_epochs: 10
-patience: 3
-accelerator: 'auto'
-devices: [6] # 修正：使用列表指定 GPU 索引，例如 [6] 表示使用 GPU 6
-
-# --- Wandb Logger Settings ---
-wandb_project: "pl-image-classification-framework" # 您的 W&B 项目名称
-wandb_run_name: null # 运行名称 (可选, 设为 null 则自动生成)
+data:
+  image_folder: data/train/images
+  label_file_path: data/train.txt
+  image_size: 384
+  num_classes: 2
+  batch_size: 96
+  num_workers: 4
+train:
+  seed: 42
+  epochs: 10
+  loss_fn: crossentropy
+  learning_rate: 0.001
+  optimizer: AdamW
+  weight_decay: 1.0e-05
+  momentum: 0.9
+  patience: 3
+  save_top_k: -1
+  accelerator: gpu
+  deviceid:
+  - 0
+  - 1
+  - 2
+  - 3
+  - 4
+  - 5
+  - 6
+  - 7
+  lr_scheduler: cosineannealinglr
+  lr_scheduler_step_size: 5
+  lr_scheduler_gamma: 0.1
+  lr_scheduler_mode: min
+  lr_scheduler_patience: 3
+  lr_scheduler_factor: 0.1
+augment:
+  random_horizontal_flip_p: 0.5
+  random_vertical_flip_p: 0.0
+  random_rotation_degrees: 15
+  color_jitter_brightness: 0.2
+  color_jitter_contrast: 0.2
+  color_jitter_saturation: 0.2
+  color_jitter_hue: 0.1
+  random_erasing_p: 0.0
+  gaussian_blur_p: 0.0
+  sharpen_p: 0.0
+  add_gaussian_noise_p: 0.0
+  add_gaussian_noise_mean: 0.0
+  add_gaussian_noise_std: 0.01
+module:
+  dataModule: utils/data_loader/dataloader.py
+  modelModule: tl_models/models/npr.py
+  tl_model_module: tl_models/tl_model.py
+logging:
+  log_dir: ./a_logs
+  single_logname: npr
+  experiment_name: fake_image_detection

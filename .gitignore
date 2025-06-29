@@ -1,1 +1,5 @@
-*.jpg
+data    
+a_logs
+reference
+*.pyc
+nohup.out
