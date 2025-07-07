@@ -37,16 +37,16 @@ def train(args:GlobalConfig,config_path):
     # 4. 设置 Trainer 和 Callbacks
     checkpoint_callback = ModelCheckpoint( # 从配置对象中访问参数
         # dirpath=args.output_dir, 
-        filename='best-checkpoint-{epoch:02d}-{train_loss:.4f}',
+        filename='best-checkpoint-{epoch:02d}-{val_auc:.4f}',
         save_top_k=args.train.save_top_k,
         verbose=True,
-        monitor='train_loss',
-        mode='min'
+        monitor='val_auc',
+        mode='max'
     )
     early_stopping_callback = EarlyStopping(
-        monitor='train_loss',
+        monitor='val_auc',
         patience=args.train.patience,
-        mode='min'
+        mode='max'
         ) # 从配置对象中访问参数
 
     logger = TensorBoardLogger(

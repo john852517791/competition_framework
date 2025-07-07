@@ -1,6 +1,7 @@
 from torch.optim import lr_scheduler
 import torch
 from config.config_class import TrainConfig
+import transformers
 
 def get_scheduler(optimizer: torch.optim.Optimizer, config_train:TrainConfig):
     """
@@ -55,6 +56,15 @@ def get_scheduler(optimizer: torch.optim.Optimizer, config_train:TrainConfig):
             # T_max=config_train.lr_scheduler_t_max if config_train.lr_scheduler_t_max else total_epochs
         )
         scheduler_config['scheduler'] = scheduler
+
+    elif scheduler_name == 'linearwarmupcosineannealinglr':
+        scheduler = transformers.get_cosine_schedule_with_warmup(
+            optimizer = optimizer, 
+            num_warmup_steps=(662810/config_train.batch_size) * config_train.warmup_steps,          
+            num_training_steps = (662810/config_train.batch_size) * config_train.epochs
+        )
+        scheduler_config['scheduler'] = scheduler
+
     elif scheduler_name == 'none':
         return None # 不使用排程器
     else:

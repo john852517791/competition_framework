@@ -30,9 +30,9 @@ class TrainConfig:
     save_top_k: int = 1
     accelerator: str = "gpu"
     deviceid: list[int] = field(default_factory=lambda: [0,1,2,3,4,5,6,7])
+    batch_size = DataConfig.batch_size
     
-    
-    lr_scheduler: str = 'cosineannealinglr' # 'StepLR', 'ReduceLROnPlateau', 'CosineAnnealingLR', 'None'
+    lr_scheduler: str = 'linearwarmupcosineannealinglr' # 'StepLR', 'ReduceLROnPlateau', 'CosineAnnealingLR', 'None', 'LinearWarmupCosineAnnealingLR'
     lr_scheduler_step_size: int = 5 # For StepLR
     lr_scheduler_gamma: float = 0.1 # For StepLR
     lr_scheduler_mode: str = 'min' # For ReduceLROnPlateau ('min' or 'max')
@@ -42,6 +42,8 @@ class TrainConfig:
     # Precision for training
     # precision: str = '32-true' # '32-true', '16-mixed', 'bf16-mixed'
     seed: int = 42 # Random seed for reproducibility
+    # Warmup parameters
+    warmup_steps: int = 4000 # Number of steps/epochs for warmup. If 0, no warmup.
 
 @dataclass
 class AugmentationConfig:

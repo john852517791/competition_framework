@@ -1,14 +1,18 @@
 import sys
 sys.path.append("./")
 import torch
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset, DataLoader,default_collate
 from torchvision import transforms
 from PIL import Image, ImageFilter
 import os
 import lightning as pl
 from config.config_class import DataConfig,AugmentationConfig
 import random
+from torchvision.transforms import v2
 
+
+MEAN = [0.485, 0.456, 0.406]
+STD = [0.229, 0.224, 0.225]
 
 class JpgImageDataset(Dataset):
     def __init__(self, folder_path):
@@ -22,7 +26,7 @@ class JpgImageDataset(Dataset):
         self.transform = transforms.Compose([
         transforms.Resize((384,384)),
         transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]) # Example ImageNet normalization
+        transforms.Normalize(mean=MEAN, std=STD) # Example ImageNet normalization
     ])
 
     def __len__(self):
@@ -142,6 +146,8 @@ class MyDataModule(pl.LightningDataModule):
         self.label_file_path = args.label_file_path
         self.batch_size = args.batch_size
         self.num_workers = args.num_workers
+        self.mixup_transform = v2.MixUp(num_classes=2)
+
 
         # 检查 image_size 是否为整数，如果是，则转换为 (size, size) 元组
         if isinstance(args.image_size, int):
@@ -167,8 +173,8 @@ class MyDataModule(pl.LightningDataModule):
         ]
 
         # 根据配置添加数据增强
-        if self.aug_args.random_horizontal_flip_p > 0:
-            transform_list.append(transforms.RandomHorizontalFlip(p=self.aug_args.random_horizontal_flip_p))
+        # if self.aug_args.random_horizontal_flip_p > 0:
+        #     transform_list.append(transforms.RandomHorizontalFlip(p=self.aug_args.random_horizontal_flip_p))
         
         if self.aug_args.random_vertical_flip_p > 0:
             transform_list.append(transforms.RandomVerticalFlip(p=self.aug_args.random_vertical_flip_p))
@@ -195,13 +201,6 @@ class MyDataModule(pl.LightningDataModule):
         # 先ToTensor，因为Sharpen和Gaussian Noise可能需要对Tensor操作
         transform_list.append(transforms.ToTensor())
 
-        if self.aug_args.sharpen_p > 0:
-            # 这里的 CustomSharpen 假设它在 ToTensor 之前作用于 PIL Image
-            # 为了能在 ToTensor 之后使用，你需要重写 CustomSharpen 或使用其他库 (如 Kornia)
-            print("Warning: Sharpening is applied before ToTensor to use PIL's ImageFilter.SHARPEN. "
-                  "If you need tensor-based sharpening, consider using Kornia or custom implementation.")
-            pass # 实际 CustomSharpen 应该在 ToTensor 之前，或者你需要自定义一个对 Tensor 锐化的操作。
-        
         if self.aug_args.add_gaussian_noise_p > 0:
             # 高斯噪声通常在 ToTensor 之后对 Tensor 进行操作
             transform_list.append(CustomGaussianNoise(
@@ -214,7 +213,7 @@ class MyDataModule(pl.LightningDataModule):
         if self.aug_args.random_erasing_p > 0:
             transform_list.append(transforms.RandomErasing(p=self.aug_args.random_erasing_p))
 
-        transform_list.append(transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]))
+        transform_list.append(transforms.Normalize(mean = MEAN, std=STD))
 
         self.transform = transforms.Compose(transform_list)
 
@@ -233,13 +232,22 @@ class MyDataModule(pl.LightningDataModule):
         if stage == "predict" or stage is None:
             self.predict_dataset = JpgImageDataset(folder_path="data/test1/images/")
 
+    
+    def collate_fn_mixup(self, batch):
+        # default_collate 将单个样本列表转换为批次张量
+        images, labels = default_collate(batch)
+        # 然后应用 MixUp 转换到整个批次
+        images_mixed, labels_mixed = self.mixup_transform(images, labels)
+        return images_mixed, labels_mixed
 
     def train_dataloader(self):
         return DataLoader(self.train_dataset,
                           batch_size=self.batch_size,
                           shuffle=True,
                           num_workers=self.num_workers,
-                          pin_memory=True)
+                          pin_memory=True,
+                          collate_fn=self.collate_fn_mixup
+                          )
 
     def val_dataloader(self):
         return DataLoader(self.val_dataset,

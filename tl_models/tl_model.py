@@ -7,7 +7,9 @@ from utils.tools.loss_wrapper import get_loss_function
 from utils.tools.optim_wrapper import get_optimizer
 from utils.tools.scheduler_wrapper import get_scheduler
 from config.config_class import GlobalConfig
+from torchmetrics.classification import BinaryAUROC # For AUC
 import shutil,os
+import torch.nn.functional as F
 
 class tl_Model(pl.LightningModule):
     """
@@ -19,6 +21,7 @@ class tl_Model(pl.LightningModule):
         self.config_path = config_path
         self.model = model
 
+        self.val_auc = BinaryAUROC()
         self.loss_fn = get_loss_function(args.train.loss_fn)
         # self.save_hyperparameters(args)
 
@@ -38,13 +41,22 @@ class tl_Model(pl.LightningModule):
         return loss
 
     def validation_step(self, batch, batch_idx):
-        x,labels = batch
-        hidden_state, logits = self(x,True)
+        x, labels = batch
+        hidden_state, logits = self(x, True) # Assuming your forward returns hidden_state, logits
         loss = self.loss_fn(logits, labels)
-        preds = torch.argmax(logits, dim=1)
-        acc = (preds == labels).float().mean()
+        probs = F.softmax(logits, dim=-1)
         self.log('val_loss', loss, on_epoch=True, prog_bar=True)
-        self.log('val_acc', acc, on_epoch=True, prog_bar=True)
+        self.val_auc(probs, labels) # Accumulate probabilities and labels for AUC
+        self.log('val_acc_step', self.val_acc, on_step=True, on_epoch=False, prog_bar=False)
+
+        return {"loss": loss, "probs": probs, "labels": labels} # Return needed data for epoch_end
+
+    def on_validation_epoch_end(self):
+        # Compute and log overall metrics at the end of the validation epoch
+        epoch_auc = self.val_auc.compute()
+        self.log('val_auc', epoch_auc, on_epoch=True, prog_bar=True)
+        # Reset metrics for the next epoch
+        self.val_auc.reset()
 
     def configure_optimizers(self):
         
@@ -85,4 +97,13 @@ class tl_Model(pl.LightningModule):
                 print(f"拷贝配置文件失败：{e}")
         else:
             print("警告：Trainer 或其日志目录未初始化，无法拷贝配置文件。")
+
+    def predict_step(self, batch, batch_idx):
+        x, image_names = batch 
+        _,logits = self(x,False) 
+        probabilities = torch.softmax(logits, dim=1)
+        scores = probabilities[:, 1] # Probability of the positive class
+        predicted_classes = torch.argmax(logits, dim=1)
+        # return {"image_name": image_names, "score": scores.tolist(), "predicted_class": predicted_classes.tolist()}
+        return {"image_name": image_names, "score": scores.tolist()}
 

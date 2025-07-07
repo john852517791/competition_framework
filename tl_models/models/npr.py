@@ -244,10 +244,7 @@ class Model(nn.Module):
         super(Model, self).__init__()
         self.resnet = resnet50(pretrained=False, num_classes=2)
     def forward(self, x,train = True):
-        if train:
-            output = self.resnet(x)
-        else:
-            output = None
+        output = self.resnet(x)
         return None, output
     
     

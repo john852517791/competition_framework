@@ -3,28 +3,35 @@ data:
   label_file_path: data/train.txt
   image_size: 384
   num_classes: 2
-  batch_size: 8
+  batch_size: 64
   num_workers: 4
 train:
   seed: 42
   epochs: 30
   loss_fn: crossentropy
-  learning_rate: 0.0001
+  learning_rate: 0.0005
   optimizer: AdamW
   weight_decay: 1.0e-05
   momentum: 0.9
   patience: 3
-  save_top_k: -1
+  save_top_k: 1
   accelerator: gpu
   deviceid:
-  - 6
-  - 7
-  lr_scheduler: cosineannealinglr
+  - 0
+  # - 1
+  # - 2
+  # - 3
+  # - 4
+  # - 5
+  # - 6
+  # - 7
+  lr_scheduler: linearwarmupcosineannealinglr
   lr_scheduler_step_size: 5
   lr_scheduler_gamma: 0.1
   lr_scheduler_mode: min
   lr_scheduler_patience: 3
   lr_scheduler_factor: 0.1
+  warmup_steps: 4000
 augment:
   random_horizontal_flip_p: 0.5
   random_vertical_flip_p: 0.0
@@ -41,9 +48,9 @@ augment:
   add_gaussian_noise_std: 0.01
 module:
   dataModule: utils/data_loader/dataloader.py
-  modelModule: tl_models/models/effnetv2_xl.py
+  modelModule: tl_models/models/EfficientNetV2.py
   tl_model_module: tl_models/tl_model.py
 logging:
   log_dir: ./a_logs
-  single_logname: effnetv2_xl
+  single_logname: EfficientNetV2
   experiment_name: fake_image_detection
