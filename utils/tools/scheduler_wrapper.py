@@ -60,8 +60,8 @@ def get_scheduler(optimizer: torch.optim.Optimizer, config_train:TrainConfig):
     elif scheduler_name == 'linearwarmupcosineannealinglr':
         scheduler = transformers.get_cosine_schedule_with_warmup(
             optimizer = optimizer, 
-            num_warmup_steps=(662810/config_train.batch_size) * config_train.warmup_steps,          
-            num_training_steps = (662810/config_train.batch_size) * config_train.epochs
+            num_warmup_steps=(config_train.sample_num/config_train.batch_size) * config_train.warmup_steps,          
+            num_training_steps = (config_train.sample_num/config_train.batch_size) * config_train.epochs
         )
         scheduler_config['scheduler'] = scheduler
 

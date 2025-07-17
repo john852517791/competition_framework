@@ -41,7 +41,8 @@ def train(args:GlobalConfig,config_path):
         save_top_k=args.train.save_top_k,
         verbose=True,
         monitor='train_loss',
-        mode='min'
+        mode='min',
+        save_weights_only=True
     )
     early_stopping_callback = EarlyStopping(
         monitor='train_loss',
@@ -62,6 +63,9 @@ def train(args:GlobalConfig,config_path):
         callbacks=[checkpoint_callback, early_stopping_callback, lr_monitor],
         logger=logger, # 从配置对象中访问参数
         log_every_n_steps=1,
+        gradient_clip_val=args.train.gradient_clip_val,           # 设置梯度裁剪的阈值
+        gradient_clip_algorithm=args.train.gradient_clip_algorithm,  # 设置裁剪算法为按范数裁剪 (默认值)
+        strategy='ddp_find_unused_parameters_true',
     )
 
     # 5. 开始训练

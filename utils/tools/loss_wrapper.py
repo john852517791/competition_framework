@@ -1,5 +1,5 @@
 import torch.nn as nn
-
+import torch
 def get_loss_function(loss_name: str, **kwargs):
     """
     根據名稱返回一個 PyTorch 損失函數實例。
@@ -21,11 +21,13 @@ def get_loss_function(loss_name: str, **kwargs):
         return nn.CrossEntropyLoss(**kwargs)
     elif loss_name == 'bcewithlogits' or loss_name == 'bcewithlogitsloss':
         # BCEWithLogitsLoss 適用於二分類或多標籤分類，直接作用於模型輸出 (logits)，內部包含 Sigmoid
-        return nn.BCEWithLogitsLoss(**kwargs)
+        return nn.BCEWithLogitsLoss(pos_weight=torch.tensor([0.25]),**kwargs)
     elif loss_name == 'mse' or loss_name == 'mseloss':
         return nn.MSELoss(**kwargs)
     elif loss_name == 'l1' or loss_name == 'l1loss':
         return nn.L1Loss(**kwargs)
+    elif loss_name == 'wce':
+        return nn.CrossEntropyLoss(weight=torch.FloatTensor([0.2, 0.8]))
     else:
         raise ValueError(f"不支援的損失函數: {loss_name}。請選擇 'CrossEntropyLoss', 'BCEWithLogitsLoss', 'MSELoss', 'L1Loss'。")
 

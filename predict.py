@@ -8,11 +8,10 @@ import pandas as pd
 from lightning import LightningModule
 
 
-def predict(args: GlobalConfig, config_path, checkpoint_path: str, predict_batch, output_csv_path):
+def predict(args: GlobalConfig, config_path, checkpoint_path: str, output_csv_path):
     """主预测函数"""
     # 1. 加载 DataModule
     data_util = importlib.import_module(convert_str_2_path(args.module.dataModule))
-    args.data.batch_size = predict_batch
     datamodule = data_util.MyDataModule(
         args=args.data,
         aug_args=args.augment
@@ -69,18 +68,19 @@ def predict(args: GlobalConfig, config_path, checkpoint_path: str, predict_batch
 
 
 def main():
-    path = "a_logs/npr_50/version_0"
+    ckpname = "a_logs/vit_base_patch16_pretrained_aasist/version_2/checkpoints/best-checkpoint-epoch=61-train_loss=0.0533.ckpt"
+    # "a_logs/mae_vit_base_patch14_pretrained_attenf_2/version_1/checkpoints/best-checkpoint-epoch=59-train_loss=0.1969.ckpt"
+    path = ckpname.split("checkpoints")[0]
     parser = argparse.ArgumentParser(description="PyTorch Lightning 图像分类训练和预测脚本。")
     parser.add_argument('--config', type=str, default=f'{path}/pred.yaml', help="配置文件路径。")
-    parser.add_argument('--output_csv_path', type=str, default=f'{path}/pred.csv')
-    parser.add_argument('--predict_batch', type=int, default=80)
-    parser.add_argument('--checkpoint_path', type=str, default=f"a_logs/npr_50/version_0/checkpoints/best-checkpoint-epoch=29-train_loss=0.0409.ckpt",
+    parser.add_argument('--output_csv_path', type=str, default=f'{path}/submit.csv')
+    parser.add_argument('--checkpoint_path', type=str, default=f"{ckpname}",
                         help="预测模式下加载的模型 checkpoint 路径。")
     cli_args = parser.parse_args()
 
     config:GlobalConfig = GlobalConfig.from_yaml(cli_args.config)
     print(config.train.deviceid)
-    predict(config, cli_args.config, cli_args.checkpoint_path,cli_args.predict_batch,cli_args.output_csv_path)
+    predict(config, cli_args.config, cli_args.checkpoint_path,cli_args.output_csv_path)
 
 if __name__ == '__main__':
     main()

@@ -32,31 +32,34 @@ class tl_Model(pl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         x,labels = batch
-        hidden_state, logits = self(x,True)
+        # if labels.dim() < 2:
+        #     labels = labels.unsqueeze(1)
+        _, logits = self(x,True)
         loss = self.loss_fn(logits, labels)
-        preds = torch.argmax(logits, dim=1)
-        acc = (preds == labels).float().mean()
+        # preds = torch.argmax(logits, dim=1)
+        # acc = (preds == labels).float().mean()
         self.log('train_loss', loss, on_step=True, on_epoch=True, prog_bar=True)
-        self.log('train_acc', acc, on_step=True, on_epoch=True, prog_bar=True)
+        # self.log('train_acc', acc, on_step=True, on_epoch=True, prog_bar=True)
         return loss
 
-    def validation_step(self, batch, batch_idx):
-        x, labels = batch
-        hidden_state, logits = self(x, True) # Assuming your forward returns hidden_state, logits
-        loss = self.loss_fn(logits, labels)
-        probs = F.softmax(logits, dim=-1)
-        self.log('val_loss', loss, on_epoch=True, prog_bar=True)
-        self.val_auc(probs, labels) # Accumulate probabilities and labels for AUC
-        self.log('val_acc_step', self.val_acc, on_step=True, on_epoch=False, prog_bar=False)
+    # def validation_step(self, batch, batch_idx):
+    #     x, labels = batch
+    #     if labels.dim() < 2:
+    #         labels = labels.unsqueeze(1)
+    #     _, logits = self(x, True) # Assuming your forward returns hidden_state, logits
+    #     loss = self.loss_fn(logits, labels)
+    #     probs = F.softmax(logits, dim=-1)
+    #     self.log('val_loss', loss, on_epoch=True, prog_bar=True)
+    #     self.val_auc(probs, labels) # Accumulate probabilities and labels for AUC
 
-        return {"loss": loss, "probs": probs, "labels": labels} # Return needed data for epoch_end
+    #     return {"loss": loss, "probs": probs, "labels": labels} # Return needed data for epoch_end
 
-    def on_validation_epoch_end(self):
-        # Compute and log overall metrics at the end of the validation epoch
-        epoch_auc = self.val_auc.compute()
-        self.log('val_auc', epoch_auc, on_epoch=True, prog_bar=True)
-        # Reset metrics for the next epoch
-        self.val_auc.reset()
+    # def on_validation_epoch_end(self):
+    #     # Compute and log overall metrics at the end of the validation epoch
+    #     epoch_auc = self.val_auc.compute()
+    #     self.log('val_auc', epoch_auc, on_epoch=True, prog_bar=True)
+    #     # Reset metrics for the next epoch
+    #     self.val_auc.reset()
 
     def configure_optimizers(self):
         
@@ -88,10 +91,12 @@ class tl_Model(pl.LightningModule):
 
             destination_config_dir = self.trainer.log_dir
             destination_config_path = os.path.join(destination_config_dir, os.path.basename(source_config_path))
+            pred_config_path = os.path.join(destination_config_dir, "pred.yaml")
 
             try:
                 # 拷贝文件
                 shutil.copy(source_config_path, destination_config_path)
+                shutil.copy(source_config_path, pred_config_path)
                 print(f"成功拷贝配置文件 '{source_config_path}' 到 '{destination_config_path}'")
             except Exception as e:
                 print(f"拷贝配置文件失败：{e}")
@@ -101,9 +106,12 @@ class tl_Model(pl.LightningModule):
     def predict_step(self, batch, batch_idx):
         x, image_names = batch 
         _,logits = self(x,False) 
-        probabilities = torch.softmax(logits, dim=1)
-        scores = probabilities[:, 1] # Probability of the positive class
-        predicted_classes = torch.argmax(logits, dim=1)
+        if logits.shape[1]==2:
+            probabilities = torch.softmax(logits, dim=1)
+            scores = probabilities[:, 1] # Probability of the positive class
+            # predicted_classes = torch.argmax(logits, dim=1)
+        else:
+            scores = logits.squeeze(1)
         # return {"image_name": image_names, "score": scores.tolist(), "predicted_class": predicted_classes.tolist()}
         return {"image_name": image_names, "score": scores.tolist()}
 

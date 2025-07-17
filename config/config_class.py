@@ -11,28 +11,31 @@ class DataConfig:
     # train_ratio: float = 0.8
     # val_ratio: float = 0.1
     # test_ratio: float = 0.1 # Ensure train_ratio + val_ratio + test_ratio = 1.0
-    image_size: int = 384 # Unified image size
+    image_size: int = 224 # Unified image size
     num_classes: int = 2 # Assuming binary classification: real vs. fake
     batch_size: int = 32
-    num_workers: int = 4
+    num_workers: int = 8
 
 @dataclass
 class TrainConfig:
     seed:int = 18181
-    epochs: int = 10
+    sample_num:int = 5302480
+    epochs: int = 5
+    gradient_clip_val: float = 1.5
+    gradient_clip_algorithm: str = "norm"
     # Learning rate scheduler
-    loss_fn:str = "crossentropy"
-    learning_rate: float = 1e-3
+    loss_fn:str = "bcewithlogitsloss"
+    learning_rate: float = 5e-4
     optimizer: str = 'AdamW' # 'Adam', 'SGD', 'AdamW'
-    weight_decay: float = 1e-5
+    weight_decay: float = 1e-3
     momentum: float = 0.9 # For SGD
     patience: int = 3
-    save_top_k: int = 1
+    save_top_k: int = -1
     accelerator: str = "gpu"
     deviceid: list[int] = field(default_factory=lambda: [0,1,2,3,4,5,6,7])
     batch_size = DataConfig.batch_size
     
-    lr_scheduler: str = 'linearwarmupcosineannealinglr' # 'StepLR', 'ReduceLROnPlateau', 'CosineAnnealingLR', 'None', 'LinearWarmupCosineAnnealingLR'
+    lr_scheduler: str = 'cosineannealinglr' # 'StepLR', 'ReduceLROnPlateau', 'CosineAnnealingLR', 'None', 'LinearWarmupCosineAnnealingLR'
     lr_scheduler_step_size: int = 5 # For StepLR
     lr_scheduler_gamma: float = 0.1 # For StepLR
     lr_scheduler_mode: str = 'min' # For ReduceLROnPlateau ('min' or 'max')
@@ -41,7 +44,6 @@ class TrainConfig:
     # lr_scheduler_t_max: int = 10 # For CosineAnnealingLR (total epochs or steps)
     # Precision for training
     # precision: str = '32-true' # '32-true', '16-mixed', 'bf16-mixed'
-    seed: int = 42 # Random seed for reproducibility
     # Warmup parameters
     warmup_steps: int = 4000 # Number of steps/epochs for warmup. If 0, no warmup.
 
@@ -68,15 +70,15 @@ class AugmentationConfig:
 @dataclass
 class moduleConfig:
     """Model specific configurations."""
-    dataModule: str = "utils/data_loader/dataloader.py"
-    modelModule: str = "tl_models/models/random_model.py"
+    dataModule: str = "utils/data_loader/dataloader2.py"
+    modelModule: str = "tl_models/models/efficientnet-b4_1.py"
     tl_model_module: str = "tl_models/tl_model.py"
     
 @dataclass
 class LoggingConfig:
     """Configurations for logging with TensorBoard."""
     log_dir: str = './a_logs'
-    single_logname:str = "sample"
+    single_logname:str = "efficientnet-b4_1"
     experiment_name: str = 'fake_image_detection'
     # log_every_n_steps: int = 50 # How often to log metrics to TensorBoard
 

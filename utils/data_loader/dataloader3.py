@@ -11,8 +11,10 @@ import random
 from torchvision.transforms import v2
 
 
-MEAN = [0.4972752332687378, 0.4161258339881897, 0.38086166977882385]
-STD = [0.3028480112552643, 0.2794816493988037, 0.27611133456230164]
+# MEAN = [0.4972752332687378, 0.4161258339881897, 0.38086166977882385]
+# STD = [0.3028480112552643, 0.2794816493988037, 0.27611133456230164]
+MEAN = [0.5, 0.5, 0.5]
+STD = [0.5, 0.5, 0.5]
 
 class JpgImageDataset(Dataset):
     def __init__(self, folder_path):
@@ -24,7 +26,7 @@ class JpgImageDataset(Dataset):
         self.folder_path = folder_path
         self.image_files = [f for f in os.listdir(folder_path) if f.lower().endswith('.jpg')]
         self.transform = transforms.Compose([
-        transforms.Resize((384,384)),
+        transforms.Resize((224,224)),
         transforms.ToTensor(),
         transforms.Normalize(mean=MEAN, std=STD) # Example ImageNet normalization
     ])
@@ -91,7 +93,8 @@ class ImageFolderWithTxtLabelsDataset(Dataset):
                 if len(parts) == 2:
                     filename, label_str = parts[0], parts[1]
                     try:
-                        label = float(label_str) # 尝试将标签转换为整数
+                        # label = float(label_str) # 尝试将标签转换为整数
+                        label = int(label_str) # 尝试将标签转换为整数
                     except ValueError:
                         print(f"警告: 标签 '{label_str}' 无法转换为整数，已跳过文件 '{filename}'。")
                         continue
@@ -238,16 +241,16 @@ class MyDataModule(pl.LightningDataModule):
         images, labels = default_collate(batch)
         # 确保标签是浮点型且形状为 [batch_size, 1]，以匹配 BCEWithLogitsLoss 和 Mixup 的要求
         # 这一步在 Mixup 之前进行，确保标签格式正确
-        if labels.dim() == 1:
-            labels = labels.float().unsqueeze(1) # 从 [64] 变为 [64, 1]
+        # if labels.dim() == 1:
+            # labels = labels.float().unsqueeze(1) # 从 [64] 变为 [64, 1]
         # --- 引入随机概率判断 ---
-        if self.mixup_transform and random.random() < self.mixup_probability:
-            # 如果随机数小于设定概率，则应用 Mixup
-            images_mixed, labels_mixed = self.mixup_transform(images, labels)
-            return images_mixed, labels_mixed
-        else:
-            # 否则，返回原始批次
-            return images, labels
+        # if self.mixup_transform and random.random() < self.mixup_probability:
+        #     # 如果随机数小于设定概率，则应用 Mixup
+        #     images_mixed, labels_mixed = self.mixup_transform(images, labels)
+        #     return images_mixed, labels_mixed
+        # else:
+        #     # 否则，返回原始批次
+        return images, labels
 
     def train_dataloader(self):
         return DataLoader(self.train_dataset,

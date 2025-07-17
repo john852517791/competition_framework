@@ -9,10 +9,42 @@ import lightning as pl
 from config.config_class import DataConfig,AugmentationConfig
 import random
 from torchvision.transforms import v2
+import cv2,yaml
+import albumentations as A
+import numpy as np
+from utils.data_loader.albu import IsotropicResize
 
+# MEAN = [0.4972752332687378, 0.4161258339881897, 0.38086166977882385]
+# STD = [0.3028480112552643, 0.2794816493988037, 0.27611133456230164]
+MEAN = [0.5, 0.5, 0.5]
+STD = [0.5, 0.5, 0.5]
 
-MEAN = [0.4972752332687378, 0.4161258339881897, 0.38086166977882385]
-STD = [0.3028480112552643, 0.2794816493988037, 0.27611133456230164]
+def read_yml():
+    with open("config/data_aug.yaml", 'r', encoding='utf-8') as file:
+            config = yaml.safe_load(file)
+    return config
+
+def init_data_aug_method(config = read_yml()):
+    trans = A.Compose([           
+        A.HorizontalFlip(p=config['data_aug']['flip_prob']),
+        A.Rotate(limit=config['data_aug']['rotate_limit'], p=config['data_aug']['rotate_prob']),
+        A.GaussianBlur(blur_limit=config['data_aug']['blur_limit'], p=config['data_aug']['blur_prob']),
+        A.OneOf([                
+            IsotropicResize(max_side=config['resolution'], interpolation_down=cv2.INTER_AREA, interpolation_up=cv2.INTER_CUBIC),
+            IsotropicResize(max_side=config['resolution'], interpolation_down=cv2.INTER_AREA, interpolation_up=cv2.INTER_LINEAR),
+            IsotropicResize(max_side=config['resolution'], interpolation_down=cv2.INTER_LINEAR, interpolation_up=cv2.INTER_LINEAR),
+        ], p = 0 if config['with_landmark'] else 1),
+        A.OneOf([
+            A.RandomBrightnessContrast(brightness_limit=config['data_aug']['brightness_limit'], contrast_limit=config['data_aug']['contrast_limit']),
+            A.FancyPCA(),
+            A.HueSaturationValue()
+        ], p=0.5),
+        A.ImageCompression(quality_range = (config['data_aug']['quality_lower'],config['data_aug']['quality_upper']), p=0.5)
+    ], 
+        keypoint_params=A.KeypointParams(format='xy') if config['with_landmark'] else None
+    )
+    return trans
+
 
 class JpgImageDataset(Dataset):
     def __init__(self, folder_path):
@@ -24,7 +56,7 @@ class JpgImageDataset(Dataset):
         self.folder_path = folder_path
         self.image_files = [f for f in os.listdir(folder_path) if f.lower().endswith('.jpg')]
         self.transform = transforms.Compose([
-        transforms.Resize((384,384)),
+        transforms.Resize((224,224)),
         transforms.ToTensor(),
         transforms.Normalize(mean=MEAN, std=STD) # Example ImageNet normalization
     ])
@@ -79,7 +111,8 @@ class ImageFolderWithTxtLabelsDataset(Dataset):
     def __init__(self, image_folder, label_file_path, transform=None):
         self.image_folder = image_folder
         self.label_file_path = label_file_path
-        self.transform = transform
+        self.norm = transform["norm"]
+        self.aug_t = transform["aug"]
         self.image_labels = [] # 存储 (image_path, label) 对
 
         if not os.path.exists(label_file_path):
@@ -91,7 +124,8 @@ class ImageFolderWithTxtLabelsDataset(Dataset):
                 if len(parts) == 2:
                     filename, label_str = parts[0], parts[1]
                     try:
-                        label = float(label_str) # 尝试将标签转换为整数
+                        # label = float(label_str) # 尝试将标签转换为整数
+                        label = int(label_str) # 尝试将标签转换为整数
                     except ValueError:
                         print(f"警告: 标签 '{label_str}' 无法转换为整数，已跳过文件 '{filename}'。")
                         continue
@@ -110,6 +144,26 @@ class ImageFolderWithTxtLabelsDataset(Dataset):
 
     def __len__(self):
         return len(self.image_labels)
+    
+    def load_rgb(self, file_path):
+        """
+        Load an RGB image from a file path and resize it to a specified resolution.
+
+        Args:
+            file_path: A string indicating the path to the image file.
+
+        Returns:
+            An Image object containing the loaded and resized image.
+
+        Raises:
+            ValueError: If the loaded image is None.
+        """
+        size = 224 # if self.mode == "train" else self.config['resolution']
+        assert os.path.exists(file_path), f"{file_path} does not exist"
+        img = cv2.imread(file_path) #bgr格式
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        img = cv2.resize(img, (size, size), interpolation=cv2.INTER_CUBIC)
+        return Image.fromarray(np.array(img, dtype=np.uint8))
 
     def __getitem__(self, idx):
         if torch.is_tensor(idx):
@@ -117,10 +171,13 @@ class ImageFolderWithTxtLabelsDataset(Dataset):
 
         image_path, label = self.image_labels[idx]
 
-        image = Image.open(image_path).convert('RGB')
-
-        if self.transform:
-            image = self.transform(image)
+        # image = Image.open(image_path).convert('RGB')
+        image = self.load_rgb(image_path)
+        image = np.array(image)
+        if self.aug_t:
+            image = self.aug_t(image=image)['image']
+        if self.norm:
+            image = self.norm(image)
 
         return image, label
 
@@ -157,66 +214,17 @@ class MyDataModule(pl.LightningDataModule):
         else:
             raise ValueError("args.image_size 必须是整数或包含两个整数的元组/列表。")
 
-
-        # 定义数据转换
-        # self.transform = transforms.Compose([
-        #     transforms.Resize(self.image_size),
-        #     transforms.RandomHorizontalFlip(p=0.5), # 以50%的概率水平翻转
-        #     transforms.RandomVerticalFlip(p=0.5), # 以30%的概率垂直翻转
-        #     transforms.RandomRotation(degrees=15, fill=0), # 在-15到15度之间随机旋转，边缘填充黑色
-        #     transforms.ToTensor(),
-        #     transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-        # ])
         self.aug_args = aug_args
-        transform_list = [
-            transforms.Resize(self.image_size),
-        ]
+        self.aug_transform = init_data_aug_method()
 
-        # 根据配置添加数据增强
-        # if self.aug_args.random_horizontal_flip_p > 0:
-        #     transform_list.append(transforms.RandomHorizontalFlip(p=self.aug_args.random_horizontal_flip_p))
-        
-        if self.aug_args.random_vertical_flip_p > 0:
-            transform_list.append(transforms.RandomVerticalFlip(p=self.aug_args.random_vertical_flip_p))
-        
-        if self.aug_args.random_rotation_degrees > 0:
-            transform_list.append(transforms.RandomRotation(degrees=self.aug_args.random_rotation_degrees, fill=0))
-        
-        # ColorJitter只有当至少一个参数大于0时才添加
-        if any([self.aug_args.color_jitter_brightness > 0, 
-                self.aug_args.color_jitter_contrast > 0, 
-                self.aug_args.color_jitter_saturation > 0, 
-                self.aug_args.color_jitter_hue > 0]):
-            transform_list.append(transforms.ColorJitter(
-                brightness=self.aug_args.color_jitter_brightness,
-                contrast=self.aug_args.color_jitter_contrast,
-                saturation=self.aug_args.color_jitter_saturation,
-                hue=self.aug_args.color_jitter_hue
-            ))
-
-        if self.aug_args.gaussian_blur_p > 0:
-            # kernel_size的选择通常取决于图像大小，这里假设一个通用值
-            transform_list.append(transforms.GaussianBlur(kernel_size=5, sigma=(0.1, 2.0)))
-
-        # 先ToTensor，因为Sharpen和Gaussian Noise可能需要对Tensor操作
-        transform_list.append(transforms.ToTensor())
-
-        if self.aug_args.add_gaussian_noise_p > 0:
-            # 高斯噪声通常在 ToTensor 之后对 Tensor 进行操作
-            transform_list.append(CustomGaussianNoise(
-                mean=self.aug_args.add_gaussian_noise_mean,
-                std=self.aug_args.add_gaussian_noise_std,
-                p=self.aug_args.add_gaussian_noise_p
-            ))
-        
-        # RandomErasing 必须在 ToTensor 之后，因为它操作的是 Tensor
-        if self.aug_args.random_erasing_p > 0:
-            transform_list.append(transforms.RandomErasing(p=self.aug_args.random_erasing_p))
-
-        transform_list.append(transforms.Normalize(mean = MEAN, std=STD))
-
-        self.transform = transforms.Compose(transform_list)
-
+        self.transform = {
+            "norm":transforms.Compose(
+                [
+                    transforms.ToTensor(), # Converts a PIL Image or numpy.ndarray (HxWxC) to a PyTorch FloatTensor (CxHxW) and scales pixel values to [0.0, 1.0].
+                    transforms.Normalize(mean=MEAN, std=STD) # Normalizes a tensor image with mean and standard deviation.
+                ]),
+            "aug":self.aug_transform
+            }
     def prepare_data(self):
         # 对于我们当前的情况，数据（图片和标签文件）假设已经存在于本地。
         pass
@@ -238,16 +246,16 @@ class MyDataModule(pl.LightningDataModule):
         images, labels = default_collate(batch)
         # 确保标签是浮点型且形状为 [batch_size, 1]，以匹配 BCEWithLogitsLoss 和 Mixup 的要求
         # 这一步在 Mixup 之前进行，确保标签格式正确
-        if labels.dim() == 1:
-            labels = labels.float().unsqueeze(1) # 从 [64] 变为 [64, 1]
+        # if labels.dim() == 1:
+            # labels = labels.float().unsqueeze(1) # 从 [64] 变为 [64, 1]
         # --- 引入随机概率判断 ---
-        if self.mixup_transform and random.random() < self.mixup_probability:
-            # 如果随机数小于设定概率，则应用 Mixup
-            images_mixed, labels_mixed = self.mixup_transform(images, labels)
-            return images_mixed, labels_mixed
-        else:
-            # 否则，返回原始批次
-            return images, labels
+        # if self.mixup_transform and random.random() < self.mixup_probability:
+        #     # 如果随机数小于设定概率，则应用 Mixup
+        #     images_mixed, labels_mixed = self.mixup_transform(images, labels)
+        #     return images_mixed, labels_mixed
+        # else:
+        #     # 否则，返回原始批次
+        return images, labels
 
     def train_dataloader(self):
         return DataLoader(self.train_dataset,
